@@ -5,11 +5,18 @@ import {
   IDEA_STAGES, PLATFORMS, followerSnapshot, ideasByStage, isUpdateDue,
   monthPosts, moveIdea, nextStage, normalizeIdeaStage, totalViews,
 } from '../logic.js';
+import {
+  CHART_COLORS, RANGE_OPTIONS, chartSummary, comparisonSeries, filterPosts, lineChart, postSeries, rangeStart,
+} from '../charts.js';
 import { card, dom, empty, esc, openDrawer, tag } from '../ui.js';
 
 export const meta = { id: 'media', title: '自媒体', icon: '🎬' };
 
 let postFilter = 'all';
+let chartRange = '30';
+let chartPlatform = 'all';
+let chartPostId = null;
+let compareIds = [];
 
 function platformLabel(key) {
   return PLATFORMS.find((item) => item.key === key)?.label || '未选平台';
@@ -97,6 +104,128 @@ function followersBlock(state) {
     </div>`;
 }
 
+function snapshotRows(post) {
+  if (!post) return '<div class="faint">先选一条发布记录</div>';
+  const snapshots = [...(post.snapshots || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  if (!snapshots.length) return '<div class="faint">还没有数据点。补第一条后，走势图就有线了</div>';
+  return `
+    <table class="table">
+      <thead><tr><th>日期</th><th class="num">播放</th><th class="num">赞</th><th class="num">评</th><th class="num">藏</th><th></th></tr></thead>
+      <tbody>
+        ${snapshots.slice(0, 8).map((snapshot) => `
+          <tr>
+            <td class="num">${esc(snapshot.date)}</td>
+            <td class="num">${Number(snapshot.views) || 0}</td>
+            <td class="num">${Number(snapshot.likes) || 0}</td>
+            <td class="num">${Number(snapshot.comments) || 0}</td>
+            <td class="num">${Number(snapshot.saves) || 0}</td>
+            <td><button class="btn small danger" data-action="del-snapshot" data-post="${esc(post.id)}" data-id="${esc(snapshot.id)}">✕</button></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function chartSection(state) {
+  const today = todayStr();
+  const from = rangeStart(chartRange, today);
+  const platformPosts = filterPosts(state.media.posts, { platform: chartPlatform });
+  const rangePosts = filterPosts(state.media.posts, { platform: chartPlatform, from, to: today });
+  if (!rangePosts.some((post) => post.id === chartPostId)) chartPostId = rangePosts[0]?.id || null;
+  const focus = rangePosts.find((post) => post.id === chartPostId) || null;
+
+  const singleSeries = focus ? [{
+    id: focus.id,
+    label: focus.title || '未命名',
+    color: CHART_COLORS[0],
+    points: postSeries(focus, { from, to: today }),
+  }] : [];
+  const selectedIds = compareIds.filter((id) => rangePosts.some((post) => post.id === id));
+  const multiSeries = comparisonSeries(state.media.posts, {
+    platform: chartPlatform, from, to: today, selectedIds,
+  });
+  const summary = chartSummary(state.media.posts, { platform: chartPlatform, from, to: today });
+
+  const platformOptions = PLATFORMS
+    .map((platform) => `<option value="${platform.key}" ${chartPlatform === platform.key ? 'selected' : ''}>${esc(platform.label)}</option>`)
+    .join('');
+  const postOptions = rangePosts
+    .map((post) => `<option value="${esc(post.id)}" ${post.id === chartPostId ? 'selected' : ''}>${esc(post.title)}</option>`)
+    .join('');
+  const snapPostOptions = platformPosts
+    .map((post) => `<option value="${esc(post.id)}" ${post.id === chartPostId ? 'selected' : ''}>${esc(post.title)} · ${esc(platformLabel(post.platform))}</option>`)
+    .join('');
+
+  return `
+    <section class="card section-gap">
+      <div class="card-head">
+        <div class="card-title">发布数据可视化</div>
+        <span class="card-sub">手动录入，不自动抓取</span>
+        <div class="card-actions">
+          <select class="input mini" data-change-action="chart-range">
+            ${RANGE_OPTIONS.map((item) => `<option value="${item.key}" ${chartRange === item.key ? 'selected' : ''}>${item.label}</option>`).join('')}
+          </select>
+          <select class="input mini" data-change-action="chart-platform">
+            <option value="all" ${chartPlatform === 'all' ? 'selected' : ''}>全部平台</option>
+            ${platformOptions}
+          </select>
+        </div>
+      </div>
+      <div class="kpi-row chart-kpis">
+        <div class="stat"><span class="stat-value num">${summary.views >= 10000 ? `${(summary.views / 10000).toFixed(1)}w` : summary.views}</span><span class="stat-label">总播放</span></div>
+        <div class="stat"><span class="stat-value num">${summary.likes}</span><span class="stat-label">总赞</span></div>
+        <div class="stat"><span class="stat-value num">${summary.comments}</span><span class="stat-label">总评论</span></div>
+        <div class="stat"><span class="stat-value num">${summary.saves}</span><span class="stat-label">总收藏</span></div>
+        <div class="stat"><span class="stat-value num">${summary.posts}</span><span class="stat-label">范围内记录</span></div>
+      </div>
+
+      <div class="grid cols-2 section-gap">
+        ${card({
+          title: '单条走势',
+          sub: '播放量随时间变化',
+          actions: `<select class="input mini" data-change-action="chart-post">${postOptions || '<option value="">没有可画的记录</option>'}</select>`,
+          body: lineChart(singleSeries, { from, to: today }),
+        })}
+        ${card({
+          title: '多条对比',
+          sub: '最多同时对比 4 条',
+          body: `
+            <div class="chart-compare-list">
+              ${rangePosts.length ? rangePosts.map((post) => `
+                <label class="chart-compare-item">
+                  <input type="checkbox" data-change-action="chart-compare" data-id="${esc(post.id)}" ${selectedIds.includes(post.id) ? 'checked' : ''}>
+                  <span class="cut">${esc(post.title)}</span>
+                </label>`).join('') : '<span class="faint">范围内没有发布记录</span>'}
+            </div>
+            ${lineChart(multiSeries, { from, to: today, valueLabel: '对比播放' })}
+            <p class="faint">不勾选时自动选数据点最多的 4 条。</p>`,
+        })}
+      </div>
+
+      <div class="grid cols-2 section-gap">
+        ${card({
+          title: '补一条发布数据',
+          sub: '数字从平台后台抄过来',
+          body: `
+            <div class="inline-form">
+              <select class="input mini" id="snap-post">${snapPostOptions || '<option value="">先有发布记录</option>'}</select>
+              <input class="input mini" type="date" id="snap-date" value="${esc(today)}">
+              <input class="input mini" type="number" min="0" id="snap-views" placeholder="播放" style="width:82px">
+              <input class="input mini" type="number" min="0" id="snap-likes" placeholder="赞" style="width:70px">
+              <input class="input mini" type="number" min="0" id="snap-comments" placeholder="评" style="width:70px">
+              <input class="input mini" type="number" min="0" id="snap-saves" placeholder="藏" style="width:70px">
+              <button class="btn small primary" data-action="add-snapshot">保存数据点</button>
+            </div>
+            <p class="faint">同一天再记一次会覆盖当天数字，不会重复累加。</p>`,
+        })}
+        ${card({
+          title: '数据点明细',
+          sub: focus ? `${focus.title} · ${platformLabel(focus.platform)}` : '未选记录',
+          body: snapshotRows(focus),
+        })}
+      </div>
+    </section>`;
+}
+
 export function render(ctx) {
   const state = ctx.state;
   const today = todayStr();
@@ -144,7 +273,9 @@ export function render(ctx) {
         body: postsTable(state),
       })}
       ${card({ title: '粉丝记录', sub: '按平台记，看涨跌', body: followersBlock(state) })}
-    </div>`;
+    </div>
+
+    ${chartSection(state)}`;
 }
 
 function ideaDrawer(idea, ctx) {
@@ -279,6 +410,67 @@ export function handle(action, el, ctx, value) {
     if (!id) return true;
     ctx.mutate((doc) => {
       doc.media.ideas = moveIdea(doc.media.ideas, id, target, beforeId);
+    });
+    return true;
+  }
+
+  if (action === 'chart-range') { chartRange = value || '30'; return true; }
+  if (action === 'chart-platform') { chartPlatform = value || 'all'; return true; }
+  if (action === 'chart-post') { chartPostId = value || null; return true; }
+
+  if (action === 'chart-compare') {
+    const postId = el?.dataset?.id;
+    if (!postId) return true;
+    if (el.checked) {
+      if (!compareIds.includes(postId) && compareIds.length >= 4) {
+        ctx.toast('最多同时对比 4 条');
+        return true;
+      }
+      compareIds = [...new Set([...compareIds, postId])].slice(0, 4);
+    } else {
+      compareIds = compareIds.filter((item) => item !== postId);
+    }
+    return true;
+  }
+
+  if (action === 'add-snapshot') {
+    const postId = dom('snap-post')?.value;
+    const date = dom('snap-date')?.value || todayStr();
+    const post = state.media.posts.find((item) => item.id === postId);
+    if (!post) { ctx.toast('先选一条发布记录'); return true; }
+    const metrics = {
+      views: Number(dom('snap-views')?.value || 0),
+      likes: Number(dom('snap-likes')?.value || 0),
+      comments: Number(dom('snap-comments')?.value || 0),
+      saves: Number(dom('snap-saves')?.value || 0),
+    };
+    ctx.mutate((doc) => {
+      const target = doc.media.posts.find((item) => item.id === postId);
+      if (!target) return;
+      target.snapshots = target.snapshots || [];
+      const existing = target.snapshots.find((snapshot) => snapshot.date === date);
+      if (existing) {
+        Object.assign(existing, metrics);
+      } else {
+        target.snapshots.push({ id: uid('sn'), date, ...metrics });
+      }
+      target.snapshots.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      Object.assign(target, metrics);
+    });
+    ctx.toast('已保存数据点');
+    return true;
+  }
+
+  if (action === 'del-snapshot') {
+    const postId = el?.dataset?.post;
+    ctx.mutate((doc) => {
+      const post = doc.media.posts.find((item) => item.id === postId);
+      if (!post) return;
+      post.snapshots = (post.snapshots || []).filter((snapshot) => snapshot.id !== id);
+      const latest = [...post.snapshots].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+      if (latest) {
+        ['views', 'likes', 'comments', 'saves'].forEach((field) => { post[field] = Number(latest[field]) || 0; });
+      }
     });
     return true;
   }

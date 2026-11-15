@@ -143,6 +143,9 @@ export function normalizeDoc(doc) {
     if (!Array.isArray(out[key])) out[key] = [];
   });
   if (typeof out.media.nextUpdateAt !== 'string') out.media.nextUpdateAt = null;
+  out.media.posts.forEach((post) => {
+    if (!Array.isArray(post.snapshots)) post.snapshots = [];
+  });
   return out;
 }
 
