@@ -3,7 +3,7 @@
 import { addDays, parseDate, todayStr } from './schema.js';
 import { esc } from './ui.js';
 
-export const CHART_COLORS = ['#4DD8FF', '#FFB648', '#4ADE80', '#FF6B6B', '#A78BFA'];
+export const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
 
 export const RANGE_OPTIONS = [
   { key: '7', label: '近 7 天' },
@@ -170,8 +170,8 @@ export function lineChart(series = [], {
 
   const paths = clean.map((item) => {
     const points = item.points.map((point) => `${x(point.date).toFixed(1)},${y(point.value).toFixed(1)}`).join(' ');
-    const circles = item.points.map((point) => `<circle cx="${x(point.date).toFixed(1)}" cy="${y(point.value).toFixed(1)}" r="3" fill="${item.color}"><title>${esc(point.date)} · ${Number(point.value) || 0}</title></circle>`).join('');
-    return `<polyline points="${points}" fill="none" stroke="${item.color}" stroke-width="2" vector-effect="non-scaling-stroke"/>${circles}`;
+    const circles = item.points.map((point) => `<circle cx="${x(point.date).toFixed(1)}" cy="${y(point.value).toFixed(1)}" r="3" style="fill:${item.color}"><title>${esc(point.date)} · ${Number(point.value) || 0}</title></circle>`).join('');
+    return `<polyline points="${points}" fill="none" style="stroke:${item.color}" stroke-width="2" vector-effect="non-scaling-stroke"/>${circles}`;
   }).join('');
 
   const legend = clean.length > 1

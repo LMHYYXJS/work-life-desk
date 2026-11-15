@@ -1,52 +1,140 @@
+/* Liquid Glass 设计变量：深色为默认，浅色通过 .theme-light 覆盖 */
 :root {
-  --bg: #0b0e13;
-  --bg-soft: #0f141b;
-  --card: rgba(255, 255, 255, 0.04);
-  --card-strong: rgba(255, 255, 255, 0.07);
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.16);
-  --text: #e6eaf0;
-  --text-dim: #8b95a6;
-  --text-faint: #5b6577;
-  --accent: #4dd8ff;
-  --accent-soft: rgba(77, 216, 255, 0.14);
-  --warn: #ffb648;
-  --warn-soft: rgba(255, 182, 72, 0.14);
-  --danger: #ff6b6b;
-  --danger-soft: rgba(255, 107, 107, 0.14);
-  --ok: #4ade80;
-  --ok-soft: rgba(74, 222, 128, 0.14);
+  color-scheme: dark;
+
+  --bg: #090a0c;
+  --bg-soft: #101216;
+  --bg-elev: #12151a;
+  --card: rgba(255, 255, 255, 0.065);
+  --card-strong: rgba(255, 255, 255, 0.11);
+  --line: rgba(255, 255, 255, 0.10);
+  --line-strong: rgba(255, 255, 255, 0.20);
+  --text: #f4f6f8;
+  --text-dim: #b2bac5;
+  --text-faint: #8b94a2;
+  --accent: #7ed8c9;
+  --accent-soft: rgba(126, 216, 201, 0.14);
+  --accent-border: rgba(126, 216, 201, 0.36);
+  --accent-glow: rgba(126, 216, 201, 0.17);
+  --accent-contrast: #06231f;
+  --warn: #e7b36c;
+  --warn-soft: rgba(231, 179, 108, 0.13);
+  --danger: #df7c7a;
+  --danger-soft: rgba(223, 124, 122, 0.13);
+  --ok: #8ccf9a;
+  --ok-soft: rgba(140, 207, 154, 0.13);
+  --focus: #8ee7d8;
+
+  --glass-card-top: rgba(255, 255, 255, 0.075);
+  --glass-card-bottom: rgba(255, 255, 255, 0.035);
+  --glass-sidebar: rgba(16, 18, 22, 0.58);
+  --glass-topbar: rgba(16, 18, 22, 0.54);
+  --glass-float: rgba(18, 20, 25, 0.80);
+  --glass-edge: rgba(255, 255, 255, 0.16);
+  --glass-edge-strong: rgba(255, 255, 255, 0.26);
+  --glass-highlight: rgba(255, 255, 255, 0.20);
+  --glass-inner-dark: rgba(0, 0, 0, 0.12);
+  --well-bg: rgba(0, 0, 0, 0.16);
+  --scroll-thumb: rgba(255, 255, 255, 0.18);
+
+  --shadow-card: inset 1px 1px 0 var(--glass-highlight), inset -1px -1px 0 var(--glass-inner-dark), 8px 14px 34px rgba(0, 0, 0, 0.26);
+  --shadow-float: inset 1px 1px 0 rgba(255, 255, 255, 0.22), inset -1px -1px 0 rgba(0, 0, 0, 0.14), 14px 24px 72px rgba(0, 0, 0, 0.42);
+  --shadow: 12px 22px 50px rgba(0, 0, 0, 0.30);
+  --primary-grad: linear-gradient(145deg, #95e7d9 0%, #55c4b1 100%);
+
+  --blur-card: 22px;
+  --blur-float: 38px;
+  --radius-panel: 24px;
   --radius-card: 16px;
-  --radius-ctl: 10px;
-  --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
-  --fs-title: 26px;
-  --fs-block: 15px;
+  --radius-ctl: 12px;
+  --radius-inner: 10px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur: 240ms;
+  --dur-fast: 140ms;
+
+  --fs-title: 28px;
+  --fs-block: 16px;
   --fs-body: 14px;
   --fs-sub: 12px;
-  --sidebar-w: 220px;
+  --sidebar-w: 228px;
+
+  --tint-home: #7ed8c9;
+  --tint-tasks: #8fb8e8;
+  --tint-media: #e39a8f;
+  --tint-dev: #8fa6c4;
+  --tint-consult: #63c5b7;
+  --tint-fitness: #a8d18d;
+  --tint-diet: #e7b36c;
+  --tint-games: #b0a9a0;
+  --tint-settings: #98a2b0;
+
+  --chart-1: #7ed8c9;
+  --chart-2: #e7b36c;
+  --chart-3: #e39a8f;
+  --chart-4: #8fb8e8;
+  --chart-5: #a8d18d;
 }
 
 .theme-light {
-  --bg: #f2f3f8;
-  --bg-soft: #ffffff;
-  --card: rgba(255, 255, 255, 0.86);
-  --card-strong: #ffffff;
-  --line: rgba(15, 20, 30, 0.10);
-  --line-strong: rgba(15, 20, 30, 0.20);
-  --text: #12161d;
-  --text-dim: #5b6577;
-  --text-faint: #8b95a6;
-  --accent: #0a84ff;
-  --accent-soft: rgba(10, 132, 255, 0.12);
-  --warn: #b26a00;
-  --warn-soft: rgba(178, 106, 0, 0.12);
-  --danger: #d9444b;
-  --danger-soft: rgba(217, 68, 75, 0.12);
-  --ok: #1f9d55;
-  --ok-soft: rgba(31, 157, 85, 0.12);
-  --shadow: 0 12px 28px rgba(20, 30, 50, 0.10);
+  color-scheme: light;
+
+  --bg: #edeff2;
+  --bg-soft: #f7f8fa;
+  --bg-elev: #f2f4f7;
+  --card: rgba(255, 255, 255, 0.62);
+  --card-strong: rgba(255, 255, 255, 0.82);
+  --line: rgba(24, 32, 44, 0.09);
+  --line-strong: rgba(24, 32, 44, 0.16);
+  --text: #171a1f;
+  --text-dim: #5a626d;
+  --text-faint: #5f6975;
+  --accent: #0f7c70;
+  --accent-soft: rgba(15, 124, 112, 0.10);
+  --accent-border: rgba(15, 124, 112, 0.30);
+  --accent-glow: rgba(15, 124, 112, 0.12);
+  --accent-contrast: #ffffff;
+  --warn: #985c0f;
+  --warn-soft: rgba(169, 104, 18, 0.10);
+  --danger: #b53a3f;
+  --danger-soft: rgba(181, 58, 63, 0.09);
+  --ok: #2e7d4f;
+  --ok-soft: rgba(46, 125, 79, 0.10);
+  --focus: #0f7c70;
+
+  --glass-card-top: rgba(255, 255, 255, 0.76);
+  --glass-card-bottom: rgba(255, 255, 255, 0.50);
+  --glass-sidebar: rgba(255, 255, 255, 0.62);
+  --glass-topbar: rgba(255, 255, 255, 0.66);
+  --glass-float: rgba(255, 255, 255, 0.82);
+  --glass-edge: rgba(255, 255, 255, 0.92);
+  --glass-edge-strong: rgba(255, 255, 255, 1);
+  --glass-highlight: rgba(255, 255, 255, 0.96);
+  --glass-inner-dark: rgba(20, 30, 45, 0.05);
+  --well-bg: rgba(255, 255, 255, 0.44);
+  --scroll-thumb: rgba(30, 40, 55, 0.18);
+
+  --shadow-card: inset 1px 1px 0 var(--glass-highlight), 0 0 0 1px rgba(24, 32, 44, 0.055), 8px 14px 30px rgba(30, 42, 60, 0.09);
+  --shadow-float: inset 1px 1px 0 #ffffff, 0 0 0 1px rgba(24, 32, 44, 0.05), 14px 24px 64px rgba(30, 42, 60, 0.16);
+  --shadow: 12px 22px 50px rgba(30, 42, 60, 0.10);
+  --primary-grad: linear-gradient(145deg, #1b9484 0%, #0a655b 100%);
+
+  --tint-home: #0f7c70;
+  --tint-tasks: #3d6fa8;
+  --tint-media: #b65a50;
+  --tint-dev: #4f6c8f;
+  --tint-consult: #2e8f83;
+  --tint-fitness: #5d7f45;
+  --tint-diet: #a96812;
+  --tint-games: #6f6a63;
+  --tint-settings: #5c6674;
+
+  --chart-1: #0f7c70;
+  --chart-2: #a96812;
+  --chart-3: #b53a3f;
+  --chart-4: #3d6fa8;
+  --chart-5: #5d7f45;
 }
 
-.fs-small { --fs-title: 23px; --fs-block: 14px; --fs-body: 13px; --fs-sub: 11px; }
-.fs-normal { --fs-title: 26px; --fs-block: 15px; --fs-body: 14px; --fs-sub: 12px; }
-.fs-large { --fs-title: 30px; --fs-block: 17px; --fs-body: 16px; --fs-sub: 13px; }
+.fs-small { --fs-title: 24px; --fs-block: 15px; --fs-body: 13px; --fs-sub: 11px; }
+.fs-normal { --fs-title: 28px; --fs-block: 16px; --fs-body: 14px; --fs-sub: 12px; }
+.fs-large { --fs-title: 32px; --fs-block: 17px; --fs-body: 16px; --fs-sub: 13px; }
