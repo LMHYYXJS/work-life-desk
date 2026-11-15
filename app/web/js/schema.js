@@ -108,7 +108,7 @@ export function defaultDoc() {
     media: { ideas: [], posts: [], followers: [], nextUpdateAt: null },
     dev: { projects: [], needs: [], todos: [], bugs: [], logs: [], versions: [] },
     consult: { leads: [], talks: [], incomes: [] },
-    fitness: { weekTemplate: [], sessions: [], body: [], exerciseLib: [] },
+    fitness: { weekTemplate: [], sessions: [], body: [], exerciseLib: [], restDays: [] },
     diet: { meals: [], foodLib: [], daily: [] },
     games: { library: [], plays: [], watchlist: [] },
     reviews: [],
@@ -119,7 +119,7 @@ const NAMESPACES = {
   media: ['ideas', 'posts', 'followers'],
   dev: ['projects', 'needs', 'todos', 'bugs', 'logs', 'versions'],
   consult: ['leads', 'talks', 'incomes'],
-  fitness: ['weekTemplate', 'sessions', 'body', 'exerciseLib'],
+  fitness: ['weekTemplate', 'sessions', 'body', 'exerciseLib', 'restDays'],
   diet: ['meals', 'foodLib', 'daily'],
   games: ['library', 'plays', 'watchlist'],
 };

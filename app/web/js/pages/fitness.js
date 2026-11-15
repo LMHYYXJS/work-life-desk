@@ -4,11 +4,18 @@ import { isoNow, todayStr, uid } from '../schema.js';
 import {
   blankWeekTemplate, latestBody, sessionDone, streakDays, templateFor, weekSessions, weekdayIndex,
 } from '../logic.js';
-import { card, dom, empty, esc, openDrawer, progress, tag } from '../ui.js';
+import {
+  WEEKDAY_LABELS, exerciseSummary, fitnessDayStatus, monthGrid, monthOf, parseExerciseLines, shiftMonth,
+} from '../calendar.js';
+import { card, dom, empty, esc, openDrawer, openFormModal, progress, tag } from '../ui.js';
 
 export const meta = { id: 'fitness', title: '健身计划', icon: '🏋️' };
 
 const WEEK_NAMES = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+let fitnessMonth = null;
+
+export function setFitnessMonth(month) { fitnessMonth = month; }
+export function resetFitnessMonth() { fitnessMonth = null; }
 
 function ensureTemplate(state) {
   return state.fitness.weekTemplate.length ? state.fitness.weekTemplate : blankWeekTemplate();
@@ -30,6 +37,150 @@ function templateRows(state, today) {
           </div>`;
       }).join('')}
     </div>`;
+}
+
+function fitnessCalendar(state, today) {
+  const month = fitnessMonth || monthOf(today);
+  const grid = monthGrid(month, today);
+  const sessionsByDate = new Map();
+  state.fitness.sessions.forEach((session) => {
+    if (!sessionsByDate.has(session.date)) sessionsByDate.set(session.date, []);
+    sessionsByDate.get(session.date).push(session);
+  });
+  const restByDate = new Map();
+  (state.fitness.restDays || []).forEach((item) => {
+    restByDate.set(typeof item === 'string' ? item : item.date, item);
+  });
+
+  let trained = 0;
+  let rested = 0;
+  let missing = 0;
+  const cells = grid.cells.map((cell) => {
+    if (cell.blank) return '<div class="cal-cell blank" aria-hidden="true"></div>';
+    const sessions = sessionsByDate.get(cell.date) || [];
+    const status = fitnessDayStatus(cell.date, sessions, state.fitness.restDays || [], today);
+    if (status === 'train') trained += 1;
+    if (status === 'rest') rested += 1;
+    if (status === 'missing') missing += 1;
+    const first = sessions[0];
+    const more = sessions.length > 1 ? `<span class="cal-more">+${sessions.length - 1}</span>` : '';
+    const body = status === 'train'
+      ? `<span class="cal-part">${esc(first.type || '训练')}${more}</span><span class="cal-moves">${esc(exerciseSummary(first.exercises || []))}</span>`
+      : status === 'rest'
+        ? '<span class="cal-status rest">没练</span>'
+        : status === 'missing'
+          ? '<span class="cal-status missing">没记</span>'
+          : '<span class="cal-status future">—</span>';
+    return `
+      <button class="cal-cell ${status} ${cell.isToday ? 'today' : ''}" data-action="open-fit-day" data-date="${esc(cell.date)}" title="${esc(cell.date)} 点击编辑">
+        <span class="cal-daynum">${cell.day}</span>
+        ${body}
+      </button>`;
+  }).join('');
+
+  return `
+    <section class="card section-gap">
+      <div class="card-head">
+        <div class="card-title">训练月历</div>
+        <span class="card-sub">部位 · 动作 · 组数×次数</span>
+        <div class="card-actions">
+          <button class="btn small" data-action="fit-month-prev">‹</button>
+          <b class="mono">${esc(grid.label)}</b>
+          <button class="btn small" data-action="fit-month-next">›</button>
+          <button class="btn small ghost" data-action="fit-month-today">本月</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="hstack cal-summary">
+          <span class="stat-inline">训练 <b class="num">${trained}</b> 天</span>
+          <span class="stat-inline">没练 <b class="num">${rested}</b> 天</span>
+          <span class="stat-inline">没记 <b class="num">${missing}</b> 天</span>
+          <span class="spacer"></span>
+          <span class="cal-legend"><i class="train"></i>训练 <i class="rest"></i>没练 <i class="missing"></i>没记</span>
+        </div>
+        <div class="calendar">
+          <div class="cal-weekdays">${WEEKDAY_LABELS.map((label) => `<span>${label}</span>`).join('')}</div>
+          <div class="cal-grid">${cells}</div>
+        </div>
+      </div>
+    </section>`;
+}
+
+function openFitnessDay(date, ctx) {
+  const state = ctx.state;
+  const sessions = state.fitness.sessions.filter((session) => session.date === date);
+  const first = sessions[0];
+  const rest = (state.fitness.restDays || []).find((item) => (typeof item === 'string' ? item === date : item.date === date));
+  const exerciseText = (first?.exercises || [])
+    .map((exercise) => `${exercise.name} ${exercise.sets || 0}×${exercise.reps || 0}${exercise.weight ? ` ${exercise.weight}kg` : ''}`)
+    .join('\n');
+  openFormModal({
+    title: `${date} · 健身记录`,
+    submitLabel: '保存这一天',
+    body: `
+      <div class="field"><label for="fd-mode">这天状态</label>
+        <select class="input" id="fd-mode">
+          <option value="train">练了</option>
+          <option value="rest" ${rest ? 'selected' : ''}>没练（主动休息）</option>
+          <option value="none">清除这一天的记录</option>
+        </select>
+      </div>
+      <div class="field"><label for="fd-type">部位 / 类型</label>
+        <input class="input" id="fd-type" value="${esc(first?.type || '')}" placeholder="胸 + 三头">
+      </div>
+      <div class="field"><label for="fd-exercises">动作，每行一个：卧推 4×10</label>
+        <textarea class="input" id="fd-exercises" rows="4" placeholder="卧推 4×10&#10;飞鸟 3×12 8kg">${esc(exerciseText)}</textarea>
+      </div>
+      <div class="grid cols-2">
+        <div class="field"><label for="fd-duration">时长（分钟）</label>
+          <input class="input" id="fd-duration" type="number" min="0" value="${first?.durationMin ?? ''}"></div>
+        <div class="field"><label for="fd-feel">感受</label>
+          <input class="input" id="fd-feel" value="${esc(first?.feel || '')}" placeholder="状态好 / 一般 / 很累"></div>
+      </div>
+      <p class="faint">选「没练」会留下明确休息标记；什么都不选才是「没记」。同一天多条训练会合并成一条。</p>`,
+    onSubmit: ({ close, setError }) => {
+      const mode = dom('fd-mode')?.value || 'train';
+      if (mode === 'none') {
+        ctx.mutate((doc) => {
+          doc.fitness.sessions = doc.fitness.sessions.filter((session) => session.date !== date);
+          doc.fitness.restDays = (doc.fitness.restDays || []).filter((item) => (typeof item === 'string' ? item !== date : item.date !== date));
+        });
+        close();
+        ctx.toast('已清除这一天的记录');
+        return true;
+      }
+      if (mode === 'rest') {
+        ctx.mutate((doc) => {
+          doc.fitness.sessions = doc.fitness.sessions.filter((session) => session.date !== date);
+          doc.fitness.restDays = (doc.fitness.restDays || []).filter((item) => (typeof item === 'string' ? item !== date : item.date !== date));
+          doc.fitness.restDays.push({ id: uid('r'), date });
+        });
+        close();
+        ctx.toast('已标记为没练');
+        return true;
+      }
+      const type = String(dom('fd-type')?.value || '').trim();
+      const parsed = parseExerciseLines(dom('fd-exercises')?.value || '');
+      if (!parsed.ok) { setError(parsed.error); return false; }
+      if (!type && !parsed.exercises.length) {
+        setError('写一个部位或至少一个动作；没练请选「没练」');
+        return false;
+      }
+      ctx.mutate((doc) => {
+        doc.fitness.sessions = doc.fitness.sessions.filter((session) => session.date !== date);
+        doc.fitness.restDays = (doc.fitness.restDays || []).filter((item) => (typeof item === 'string' ? item !== date : item.date !== date));
+        doc.fitness.sessions.push({
+          id: uid('s'), date, type: type || '训练',
+          durationMin: Number(dom('fd-duration')?.value || 0),
+          feel: dom('fd-feel')?.value || '',
+          exercises: parsed.exercises, note: '', createdAt: isoNow(),
+        });
+      });
+      close();
+      ctx.toast('这一天已保存');
+      return true;
+    },
+  });
 }
 
 function sessionRows(state) {
@@ -82,7 +233,7 @@ function exerciseLib(state, filterText = '') {
 
 export function render(ctx) {
   const state = ctx.state;
-  const today = todayStr();
+  const today = typeof ctx.today === 'function' ? ctx.today() : todayStr();
   const week = weekSessions(state.fitness.sessions, today);
   const streak = streakDays(state.fitness.sessions, today);
   const info = latestBody(state.fitness.body);
@@ -98,6 +249,8 @@ export function render(ctx) {
       <div class="stat"><span class="stat-value num">${info.latest ? info.latest.weight : '—'}</span><span class="stat-label">体重 kg</span></div>
       <div class="stat"><span class="stat-value">${esc(planText)}</span><span class="stat-label">今日安排${todayDone ? ' · <span class="tag ok">已打卡</span>' : todaySession ? ' · 训练中' : ''}</span></div>
     </div>
+
+    ${fitnessCalendar(state, today)}
 
     <div class="grid cols-2 section-gap">
       ${card({
@@ -200,6 +353,24 @@ export function handle(action, el, ctx, value) {
   const id = el?.dataset?.id;
 
   if (action === 'new') { dom('session-type')?.focus(); return true; }
+
+  if (action === 'fit-month-prev' || action === 'fit-month-next') {
+    fitnessMonth = shiftMonth(fitnessMonth || monthOf(todayStr()), action === 'fit-month-prev' ? -1 : 1);
+    ctx.refresh();
+    return true;
+  }
+
+  if (action === 'fit-month-today') {
+    fitnessMonth = null;
+    ctx.refresh();
+    return true;
+  }
+
+  if (action === 'open-fit-day') {
+    const date = el?.dataset?.date;
+    if (date) openFitnessDay(date, ctx);
+    return true;
+  }
 
   if (action === 'template-part') {
     const day = Number(el.dataset.day);

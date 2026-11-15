@@ -2,9 +2,17 @@
 
 import { todayStr, uid, isoNow } from '../schema.js';
 import { MEAL_SLOTS, kcalOf, mealsBySlot, outsideThisWeek, waterOf } from '../logic.js';
-import { card, dom, empty, esc, progress, tag } from '../ui.js';
+import {
+  WEEKDAY_LABELS, dietDayStatus, monthGrid, monthOf, shiftMonth,
+} from '../calendar.js';
+import { card, dom, empty, esc, openFormModal, progress, tag } from '../ui.js';
 
 export const meta = { id: 'diet', title: '饮食计划', icon: '🍱' };
+
+let dietMonth = null;
+
+export function setDietMonth(month) { dietMonth = month; }
+export function resetDietMonth() { dietMonth = null; }
 
 function suggestSlot() {
   const hour = new Date().getHours();
@@ -33,6 +41,168 @@ function todayMeals(state) {
       <span class="num faint">${bySlot[slot.key].reduce((sum, meal) => sum + (Number(meal.kcal) || 0), 0)}</span>
     </div>`).join('');
 }
+
+function dietCalendar(state, today) {
+  const month = dietMonth || monthOf(today);
+  const grid = monthGrid(month, today);
+  const dailyByDate = new Map(state.diet.daily.map((item) => [item.date, item]));
+  let recorded = 0;
+  let noMeal = 0;
+  let missing = 0;
+  const cells = grid.cells.map((cell) => {
+    if (cell.blank) return '<div class="cal-cell blank" aria-hidden="true"></div>';
+    const meals = state.diet.meals.filter((meal) => meal.date === cell.date);
+    const status = dietDayStatus(cell.date, meals, state.diet.daily, today);
+    if (status === 'meals') recorded += 1;
+    if (status === 'noMeal') noMeal += 1;
+    if (status === 'missing') missing += 1;
+    const bySlot = mealsBySlot(meals, cell.date);
+    const text = MEAL_SLOTS.filter((slot) => bySlot[slot.key].length)
+      .map((slot) => `${slot.label.replace('餐', '')} ${bySlot[slot.key].map((meal) => meal.name).join('、')}`)
+      .join(' · ');
+    const body = status === 'meals'
+      ? `<span class="cal-meals">${esc(text)}</span>`
+      : status === 'noMeal'
+        ? '<span class="cal-status noMeal">没吃</span>'
+        : status === 'missing'
+          ? '<span class="cal-status missing">没记</span>'
+          : '<span class="cal-status future">—</span>';
+    return `
+      <button class="cal-cell ${status} ${cell.isToday ? 'today' : ''}" data-action="open-diet-day" data-date="${esc(cell.date)}" title="${esc(cell.date)}${text ? ` · ${text}` : ''} 点击编辑">
+        <span class="cal-daynum">${cell.day}</span>
+        ${body}
+      </button>`;
+  }).join('');
+
+  return `
+    <section class="card section-gap">
+      <div class="card-head">
+        <div class="card-title">饮食月历</div>
+        <span class="card-sub">每格显示餐次内容</span>
+        <div class="card-actions">
+          <button class="btn small" data-action="diet-month-prev">‹</button>
+          <b class="mono">${esc(grid.label)}</b>
+          <button class="btn small" data-action="diet-month-next">›</button>
+          <button class="btn small ghost" data-action="diet-month-today">本月</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="hstack cal-summary">
+          <span class="stat-inline">有记录 <b class="num">${recorded}</b> 天</span>
+          <span class="stat-inline">没吃 <b class="num">${noMeal}</b> 天</span>
+          <span class="stat-inline">没记 <b class="num">${missing}</b> 天</span>
+          <span class="spacer"></span>
+          <span class="cal-legend"><i class="meals"></i>有餐 <i class="noMeal"></i>没吃 <i class="missing"></i>没记</span>
+        </div>
+        <div class="calendar">
+          <div class="cal-weekdays">${WEEKDAY_LABELS.map((label) => `<span>${label}</span>`).join('')}</div>
+          <div class="cal-grid">${cells}</div>
+        </div>
+      </div>
+    </section>`;
+}
+
+function openDietDay(date, ctx) {
+  const state = ctx.state;
+  const meals = state.diet.meals.filter((meal) => meal.date === date);
+  const daily = state.diet.daily.find((item) => item.date === date) || {};
+  const existing = meals.length
+    ? meals.map((meal) => `<div class="hstack"><span>${esc(MEAL_SLOTS.find((slot) => slot.key === meal.slot)?.label || '一餐')} · ${esc(meal.name)}</span><span class="num faint">${meal.kcal || 0} kcal</span></div>`).join('')
+    : '<div class="faint">这天还没有餐次记录</div>';
+  openFormModal({
+    title: `${date} · 饮食记录`,
+    submitLabel: '保存这一天',
+    body: `
+      <div class="field"><label for="dd-mode">这天状态</label>
+        <select class="input" id="dd-mode">
+          <option value="record">记一餐 / 改饮水</option>
+          <option value="noMeal" ${daily.noMeal ? 'selected' : ''}>没吃（明确标记）</option>
+          <option value="none">清除这一天的记录</option>
+        </select>
+      </div>
+      <div class="existing-meals">${existing}</div>
+      <div class="grid cols-2">
+        <div class="field"><label for="dd-slot">餐次</label>
+          <select class="input" id="dd-slot">${MEAL_SLOTS.map((slot) => `<option value="${slot.key}">${slot.label}</option>`).join('')}</select></div>
+        <div class="field"><label for="dd-kcal">热量 kcal</label>
+          <input class="input" id="dd-kcal" type="number" min="0" placeholder="可空"></div>
+      </div>
+      <div class="grid cols-2">
+        <div class="field"><label for="dd-name">这餐吃了什么</label>
+          <input class="input" id="dd-name" placeholder="鸡蛋、牛奶"></div>
+        <div class="field"><label for="dd-amount">份量</label>
+          <input class="input" id="dd-amount" placeholder="2 个 / 300g"></div>
+      </div>
+      <div class="grid cols-2">
+        <div class="field"><label for="dd-water">饮水杯数</label>
+          <input class="input" id="dd-water" type="number" min="0" value="${Number(daily.waterCups) || 0}"></div>
+        <div class="field"><label for="dd-outside">外食次数 / 花费</label>
+          <div class="hstack">
+            <input class="input mini" id="dd-outside" type="number" min="0" value="${Number(daily.outsideCount) || 0}" style="width:70px">
+            <input class="input mini" id="dd-spend" type="number" min="0" value="${Number(daily.outsideSpend) || 0}" style="width:88px">
+          </div>
+        </div>
+      </div>
+      <div class="field"><label for="dd-note">当天感觉</label>
+        <input class="input" id="dd-note" value="${esc(daily.note || '')}" placeholder="饿不饿、有没有乱吃"></div>
+      <p class="faint">选「没吃」会删掉这天已有餐次，并留下明确标记；什么都不记才是「没记」。</p>`,
+    onSubmit: ({ close, setError }) => {
+      const mode = dom('dd-mode')?.value || 'record';
+      if (mode === 'none') {
+        ctx.mutate((doc) => {
+          doc.diet.meals = doc.diet.meals.filter((meal) => meal.date !== date);
+          doc.diet.daily = doc.diet.daily.filter((item) => item.date !== date);
+        });
+        close();
+        ctx.toast('已清除这一天的饮食记录');
+        return true;
+      }
+      if (mode === 'noMeal') {
+        ctx.mutate((doc) => {
+          doc.diet.meals = doc.diet.meals.filter((meal) => meal.date !== date);
+          let record = doc.diet.daily.find((item) => item.date === date);
+          if (!record) {
+            record = { date, waterCups: 0, outsideCount: 0, outsideSpend: 0, note: '' };
+            doc.diet.daily.push(record);
+          }
+          record.noMeal = true;
+        });
+        close();
+        ctx.toast('已标记为没吃');
+        return true;
+      }
+
+      const name = String(dom('dd-name')?.value || '').trim();
+      const kcal = Number(dom('dd-kcal')?.value || 0);
+      if (!name && !meals.length && !Number(dom('dd-water')?.value || 0)) {
+        setError('至少写一餐，或者标记「没吃」');
+        return false;
+      }
+      ctx.mutate((doc) => {
+        let record = doc.diet.daily.find((item) => item.date === date);
+        if (!record) {
+          record = { date, waterCups: 0, outsideCount: 0, outsideSpend: 0, note: '' };
+          doc.diet.daily.push(record);
+        }
+        record.waterCups = Math.max(0, Number(dom('dd-water')?.value || 0));
+        record.outsideCount = Math.max(0, Number(dom('dd-outside')?.value || 0));
+        record.outsideSpend = Math.max(0, Number(dom('dd-spend')?.value || 0));
+        record.note = String(dom('dd-note')?.value || '');
+        record.noMeal = false;
+        if (name) {
+          doc.diet.meals.push({
+            id: uid('m'), date, slot: dom('dd-slot')?.value || 'lunch',
+            name, amount: dom('dd-amount')?.value || '', kcal, createdAt: isoNow(),
+          });
+        }
+      });
+      close();
+      ctx.toast('这一天已保存');
+      return true;
+    },
+  });
+}
+
 
 function foodLibBlock(state) {
   if (!state.diet.foodLib.length) return empty('食物库空着。把常吃的、常查热量的记下来');
@@ -70,7 +240,7 @@ function weekTable(state) {
 
 export function render(ctx) {
   const state = ctx.state;
-  const today = todayStr();
+  const today = typeof ctx.today === 'function' ? ctx.today() : todayStr();
   const kcal = kcalOf(state.diet.meals.filter((meal) => meal.date === today));
   const goal = Number(state.settings.calorieGoal) || 2200;
   const cups = waterOf(state.diet.daily, today);
@@ -85,6 +255,8 @@ export function render(ctx) {
       <div class="stat"><span class="stat-value num">${outside.count}</span><span class="stat-label">本周外食次数</span></div>
       <div class="stat"><span class="stat-value num">${outside.spend}</span><span class="stat-label">本周外食花费</span></div>
     </div>
+
+    ${dietCalendar(state, today)}
 
     <section class="card section-gap">
       <div class="card-head">
@@ -159,6 +331,24 @@ export function handle(action, el, ctx, value) {
   const id = el?.dataset?.id;
 
   if (action === 'new') { dom('diet-name')?.focus(); return true; }
+
+  if (action === 'diet-month-prev' || action === 'diet-month-next') {
+    dietMonth = shiftMonth(dietMonth || monthOf(todayStr()), action === 'diet-month-prev' ? -1 : 1);
+    ctx.refresh();
+    return true;
+  }
+
+  if (action === 'diet-month-today') {
+    dietMonth = null;
+    ctx.refresh();
+    return true;
+  }
+
+  if (action === 'open-diet-day') {
+    const date = el?.dataset?.date;
+    if (date) openDietDay(date, ctx);
+    return true;
+  }
 
   if (action === 'add-meal') {
     const nameInput = dom('diet-name');
