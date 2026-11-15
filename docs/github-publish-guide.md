@@ -173,7 +173,7 @@ docs/website-handoff.md
 - [ ] GitHub 仓库是 Public
 - [ ] 仓库里没有 `data/`、`backups/`、`app/runtime/`
 - [ ] README 截图能正常显示
-- [ ] Release ZIP 能下载，大小正常（约 35–40 MB）
+- [ ] Release ZIP 能下载，大小正常（当前约 13.63 MB）
 - [ ] 把 ZIP 解压到一个全新目录，双击 `启动.bat`，能打开 `http://127.0.0.1:8848/`
 - [ ] 新目录里能生成 `data/data.json`，关闭后数据还在
 - [ ] 网站链接已替换为真实地址
