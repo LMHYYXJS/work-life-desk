@@ -143,6 +143,109 @@ export function confirmTyped({ title, text, word = '确认删除', confirmLabel 
   });
 }
 
+/**
+ * 通用表单弹窗：遮罩 + ESC + 点遮罩 + 关闭按钮都能关。
+ * 有未保存内容时先弹确认；onSubmit 返回 false 可把错误留在弹窗里。
+ */
+export function openFormModal({ title, body, submitLabel = '保存', onSubmit, confirm = confirmDialog }) {
+  const root = dom('modal-root');
+  if (!root || typeof document === 'undefined') return null;
+  const mask = document.createElement('div');
+  mask.className = 'modal-mask';
+  mask.innerHTML = `
+    <div class="modal form-modal" role="dialog" aria-modal="true" aria-labelledby="form-modal-title">
+      <div class="modal-head">
+        <h3 id="form-modal-title">${esc(title)}</h3>
+        <button type="button" class="icon-btn" data-modal-close aria-label="关闭">✕</button>
+      </div>
+      <form data-modal-form>
+        <div class="stack">${body}</div>
+        <div class="modal-error" data-modal-error hidden></div>
+        <div class="modal-actions">
+          <button type="button" class="btn" data-modal-close>取消</button>
+          <button type="submit" class="btn primary">${esc(submitLabel)}</button>
+        </div>
+      </form>
+    </div>`;
+
+  let dirty = false;
+  let closed = false;
+  let confirming = false;
+
+  const errorBox = typeof mask.querySelector === 'function' ? mask.querySelector('[data-modal-error]') : null;
+  const setError = (message) => {
+    if (!errorBox) return;
+    errorBox.textContent = message || '';
+    errorBox.hidden = !message;
+  };
+
+  const onKey = (event) => {
+    if (event.key !== 'Escape') return;
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+    attemptClose();
+  };
+
+  const closeNow = () => {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('keydown', onKey);
+    if (typeof mask.remove === 'function') mask.remove();
+  };
+
+  const attemptClose = async () => {
+    if (closed || confirming) return false;
+    if (dirty) {
+      confirming = true;
+      const ok = await confirm({
+        title: '放弃未保存的内容？',
+        text: '关闭后这次填写的内容不会保留。',
+        confirmLabel: '放弃并关闭',
+        danger: true,
+      });
+      confirming = false;
+      if (!ok) return false;
+    }
+    closeNow();
+    return true;
+  };
+
+  const form = typeof mask.querySelector === 'function' ? mask.querySelector('[data-modal-form]') : null;
+  if (form) {
+    const markDirty = () => { dirty = true; };
+    form.addEventListener('input', markDirty);
+    form.addEventListener('change', markDirty);
+    form.addEventListener('submit', async (event) => {
+      if (typeof event.preventDefault === 'function') event.preventDefault();
+      setError('');
+      const result = await onSubmit({
+        form,
+        close: () => { closeNow(); },
+        setError,
+      });
+      if (result === false) return;
+    });
+  }
+
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) { attemptClose(); return; }
+    const closeButton = event.target.closest && event.target.closest('[data-modal-close]');
+    if (closeButton) attemptClose();
+  });
+  document.addEventListener('keydown', onKey);
+  root.appendChild(mask);
+  setTimeout(() => {
+    const first = typeof mask.querySelector === 'function' ? mask.querySelector('[data-autofocus="1"]') : null;
+    if (first && typeof first.focus === 'function') first.focus();
+  }, 30);
+
+  return {
+    mask,
+    close: attemptClose,
+    setDirty(value = true) { dirty = !!value; },
+    isDirty: () => dirty,
+  };
+}
+
 let drawerNode = null;
 export function openDrawer(html) {
   closeDrawer();

@@ -5,7 +5,7 @@ import {
   BUG_SEVERITY, BUG_STATUS, PROJECT_STAGES, hasLogToday,
   isItemDone, openBugCount, projectProgress,
 } from '../logic.js';
-import { card, dom, empty, esc, openDrawer, progress, tag } from '../ui.js';
+import { card, dom, empty, esc, openDrawer, openFormModal, progress, tag } from '../ui.js';
 
 export const meta = { id: 'dev', title: '开发工作', icon: '💻' };
 
@@ -16,6 +16,85 @@ const TABS = [
   { key: 'todos', label: '待办' },
   { key: 'bugs', label: 'Bug' },
 ];
+
+/** 创建项目弹窗的表单 HTML；只保留真正需要的字段，项目名必填。 */
+export function projectFormBody() {
+  return `
+    <div class="field">
+      <label for="pm-name">项目名 <span class="required">*</span></label>
+      <input class="input" id="pm-name" name="name" placeholder="比如「Minecraft 作品集网站」" autocomplete="off" data-autofocus="1">
+    </div>
+    <div class="grid cols-2">
+      <div class="field"><label for="pm-type">类型</label>
+        <select class="input" id="pm-type" name="type">
+          ${['网站', '应用', '工具', '其他'].map((type) => `<option value="${type}">${type}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label for="pm-stage">阶段</label>
+        <select class="input" id="pm-stage" name="stage">
+          ${PROJECT_STAGES.map((stage) => `<option value="${stage.key}">${stage.label}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="field"><label for="pm-due">截止日（可空）</label>
+      <input class="input" type="date" id="pm-due" name="dueDate">
+    </div>
+    <div class="field"><label for="pm-next">下一步（可空）</label>
+      <input class="input" id="pm-next" name="nextStep" placeholder="下一件要做的事">
+    </div>
+    <p class="faint">创建后会出现在项目卡片里，可以再打开补充截止日和进度。</p>`;
+}
+
+/** 校验并规范化项目草稿；返回错误或可直接写库的项目对象。 */
+export function normalizeProjectDraft(draft = {}) {
+  const name = String(draft.name || '').trim();
+  if (!name) return { ok: false, error: '项目名不能为空' };
+  const stage = PROJECT_STAGES.some((item) => item.key === draft.stage) ? draft.stage : 'plan';
+  return {
+    ok: true,
+    project: {
+      name,
+      type: String(draft.type || '网站'),
+      stage,
+      dueDate: draft.dueDate || null,
+      nextStep: String(draft.nextStep || '').trim(),
+      progress: 0,
+    },
+  };
+}
+
+function openProjectModal(ctx) {
+  openFormModal({
+    title: '新建项目',
+    submitLabel: '创建项目',
+    body: projectFormBody(),
+    onSubmit: ({ close, setError }) => {
+      const draft = {
+        name: dom('pm-name')?.value || '',
+        type: dom('pm-type')?.value || '网站',
+        stage: dom('pm-stage')?.value || 'plan',
+        dueDate: dom('pm-due')?.value || null,
+        nextStep: dom('pm-next')?.value || '',
+      };
+      const result = normalizeProjectDraft(draft);
+      if (!result.ok) {
+        setError(result.error);
+        dom('pm-name')?.focus();
+        return false;
+      }
+      ctx.mutate((doc) => {
+        doc.dev.projects.push({
+          id: uid('p'),
+          ...result.project,
+          updatedAt: isoNow(),
+        });
+      });
+      close();
+      ctx.toast('项目已创建');
+      return true;
+    },
+  });
+}
 
 function projectName(state, projectId) {
   return state.dev.projects.find((item) => item.id === projectId)?.name || '未归属项目';
@@ -37,7 +116,7 @@ function bugStatusLabel(key) {
 function projectCards(state) {
   const mode = state.settings.projectProgressMode;
   if (!state.dev.projects.length) {
-    return empty('先建一个项目，哪怕是自己的网站', '新建项目，填个名字就行', 'focus-project');
+    return empty('先建一个项目，哪怕是自己的网站', '新建项目，填个名字就行', 'open-project-modal');
   }
   const lists = { needs: state.dev.needs, todos: state.dev.todos, bugs: state.dev.bugs };
   return `
@@ -186,10 +265,7 @@ export function render(ctx) {
       <div class="card-head">
         <div class="card-title">项目</div>
         <div class="card-actions">
-          <input class="input mini" id="project-name" placeholder="项目名" style="width:160px" data-enter="1" data-enter-action="add-project" data-focus-key="project-name">
-          <select class="input mini" id="project-type"><option value="网站">网站</option><option value="应用">应用</option><option value="工具">工具</option><option value="其他">其他</option></select>
-          <select class="input mini" id="project-stage">${PROJECT_STAGES.map((stage) => `<option value="${stage.key}">${stage.label}</option>`).join('')}</select>
-          <button class="btn small primary" data-action="add-project">＋ 新建项目</button>
+          <button class="btn small primary" data-action="open-project-modal">＋ 新建项目</button>
         </div>
       </div>
       ${projectCards(state)}
@@ -250,20 +326,8 @@ export function handle(action, el, ctx, value) {
   const state = ctx.state;
   const id = el?.dataset?.id;
 
-  if (action === 'new') { dom('project-name')?.focus(); return true; }
-  if (action === 'focus-project') { dom('project-name')?.focus(); return true; }
-
-  if (action === 'add-project') {
-    const nameInput = dom('project-name');
-    const name = String(value || nameInput?.value || '').trim();
-    if (!name) { ctx.toast('先给项目起个名字'); return true; }
-    ctx.mutate((doc) => {
-      doc.dev.projects.push({
-        id: uid('p'), name, type: dom('project-type')?.value || '网站', stage: dom('project-stage')?.value || 'plan',
-        progress: 0, nextStep: '', dueDate: null, updatedAt: isoNow(),
-      });
-    });
-    if (nameInput) nameInput.value = '';
+  if (action === 'new' || action === 'focus-project' || action === 'open-project-modal') {
+    openProjectModal(ctx);
     return true;
   }
 
