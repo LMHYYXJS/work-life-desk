@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { formatCn, getByPath, setByPath, todayStr } from './schema.js';
 import { isUpdateDue, followUps } from './logic.js';
 import { pageById, pages } from './pages/index.js';
+import { navHtml, syncNav } from './nav.js';
 import { router } from './router.js';
 import { Store } from './store.js';
 import { closeDrawer, confirmDialog, confirmTyped, esc, toast } from './ui.js';
@@ -32,12 +33,7 @@ const ctx = {
 // ---------- 侧栏 ----------
 function buildNav() {
   const nav = document.getElementById('nav');
-  nav.innerHTML = pages.map((page, index) => `
-    <button class="nav-item" data-page="${page.meta.id}" title="${esc(page.meta.title)}">
-      <span class="nav-icon">${page.meta.icon}</span>
-      <span class="nav-label">${esc(page.meta.title)}</span>
-      <span class="nav-key">${index + 1}</span>
-    </button>`).join('');
+  nav.innerHTML = navHtml(pages, router.current);
 }
 
 function navBadges() {
@@ -50,19 +46,7 @@ function navBadges() {
 }
 
 function updateNav() {
-  const badges = navBadges();
-  document.querySelectorAll('.nav-item').forEach((item) => {
-    const id = item.dataset.page;
-    item.classList.toggle('active', id === router.current);
-    const old = item.querySelector('.nav-badge');
-    if (old) old.remove();
-    if (badges[id]) {
-      const badge = document.createElement('span');
-      badge.className = 'nav-badge';
-      badge.textContent = badges[id];
-      item.appendChild(badge);
-    }
-  });
+  syncNav(document, router.current, navBadges());
 }
 
 // ---------- 渲染 ----------
