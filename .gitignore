@@ -9,3 +9,6 @@ app/runtime/
 __pycache__/
 *.pyc
 .tmp-*
+
+# 发布产物：由 scripts/build-release.ps1 生成，不进源码库
+release/
