@@ -71,12 +71,27 @@ export function sortMemos(memos) {
 
 // ---------- 自媒体 ----------
 export const IDEA_STAGES = [
-  { key: 'idea', label: '选题' },
-  { key: 'script', label: '脚本' },
-  { key: 'shoot', label: '拍摄' },
-  { key: 'edit', label: '剪辑' },
-  { key: 'publish', label: '发布' },
+  { key: 'idea', label: '灵感' },
+  { key: 'plan', label: '待策划' },
+  { key: 'producing', label: '制作中' },
+  { key: 'ready', label: '待发布' },
 ];
+
+const STAGE_ALIASES = {
+  idea: 'idea',
+  plan: 'plan',
+  producing: 'producing',
+  ready: 'ready',
+  script: 'plan',
+  shoot: 'producing',
+  edit: 'producing',
+  publish: 'ready',
+};
+
+/** 兼容旧数据：脚本/拍摄/剪辑/发布 自动映射到新的四列。 */
+export function normalizeIdeaStage(stage) {
+  return STAGE_ALIASES[stage] || 'idea';
+}
 
 export const PLATFORMS = [
   { key: 'douyin', label: '抖音' },
@@ -87,18 +102,60 @@ export const PLATFORMS = [
 ];
 
 export function nextStage(stage) {
-  const index = IDEA_STAGES.findIndex((item) => item.key === stage);
+  const normalized = normalizeIdeaStage(stage);
+  const index = IDEA_STAGES.findIndex((item) => item.key === normalized);
   if (index < 0 || index >= IDEA_STAGES.length - 1) return null;
   return IDEA_STAGES[index + 1].key;
 }
 
 export function ideasByStage(ideas) {
-  const map = { idea: [], script: [], shoot: [], edit: [], publish: [] };
+  const map = { idea: [], plan: [], producing: [], ready: [] };
   (ideas || []).forEach((idea) => {
-    const key = map[idea.stage] ? idea.stage : 'idea';
+    const key = normalizeIdeaStage(idea.stage);
     map[key].push(idea);
   });
+  Object.values(map).forEach((list) => {
+    list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)
+      || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  });
   return map;
+}
+
+/**
+ * 移动选题卡片：跨列或同列排序。
+ * 返回新的数组；目标列按 beforeId 插入（null 表示放到最后），并重排 order 保证刷新后顺序不变。
+ */
+export function moveIdea(ideas, id, targetStage, beforeId = null) {
+  const stage = normalizeIdeaStage(targetStage);
+  const list = (ideas || []).map((item) => ({ ...item }));
+  const moving = list.find((item) => item.id === id);
+  if (!moving) return list;
+  const fromStage = normalizeIdeaStage(moving.stage);
+  moving.stage = stage;
+
+  const destination = list
+    .filter((item) => item.id !== id && normalizeIdeaStage(item.stage) === stage)
+    .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)
+      || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+
+  let index = destination.length;
+  if (beforeId) {
+    const found = destination.findIndex((item) => item.id === beforeId);
+    if (found >= 0) index = found;
+  }
+  destination.splice(index, 0, moving);
+  destination.forEach((item, order) => { item.order = order; });
+
+  // 跨列时，原列被抽走一项后顺序也压紧，避免出现空洞
+  if (fromStage !== stage) {
+    list
+      .filter((item) => item.id !== id && normalizeIdeaStage(item.stage) === fromStage)
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)
+        || String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
+      .forEach((item, order) => { item.order = order; });
+  }
+
+  return list;
 }
 
 export function monthPosts(posts, refDate) {

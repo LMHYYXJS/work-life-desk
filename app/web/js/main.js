@@ -170,6 +170,71 @@ function highlight(id) {
 }
 
 // ---------- 事件 ----------
+let draggingIdeaId = null;
+let suppressClickUntil = 0;
+
+function clearDragState() {
+  draggingIdeaId = null;
+  document.querySelectorAll('.kcol.drag-over').forEach((node) => node.classList.remove('drag-over'));
+  document.querySelectorAll('.kcard.dragging').forEach((node) => node.classList.remove('dragging'));
+}
+
+function beforeCardId(card, clientY) {
+  if (!card || !card.getBoundingClientRect) return null;
+  const rect = card.getBoundingClientRect();
+  const after = clientY > rect.top + rect.height / 2;
+  if (!after) return card.dataset.itemId || null;
+  const next = card.nextElementSibling;
+  return next && next.classList && next.classList.contains('kcard') ? (next.dataset.itemId || null) : null;
+}
+
+document.addEventListener('dragstart', (event) => {
+  const card = event.target.closest ? event.target.closest('.kcard[draggable="true"]') : null;
+  if (!card) return;
+  draggingIdeaId = card.dataset.itemId;
+  card.classList.add('dragging');
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    try { event.dataTransfer.setData('text/plain', draggingIdeaId); } catch (error) { /* 某些浏览器限制 */ }
+  }
+});
+
+document.addEventListener('dragover', (event) => {
+  if (!draggingIdeaId) return;
+  const col = event.target.closest ? event.target.closest('.kcol') : null;
+  if (!col) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.kcol.drag-over').forEach((node) => { if (node !== col) node.classList.remove('drag-over'); });
+  col.classList.add('drag-over');
+});
+
+document.addEventListener('dragleave', (event) => {
+  const col = event.target.closest ? event.target.closest('.kcol') : null;
+  if (!col) return;
+  if (event.relatedTarget && col.contains(event.relatedTarget)) return;
+  col.classList.remove('drag-over');
+});
+
+document.addEventListener('drop', (event) => {
+  if (!draggingIdeaId) return;
+  const col = event.target.closest ? event.target.closest('.kcol') : null;
+  if (!col) return;
+  event.preventDefault();
+  const stage = col.dataset.stage;
+  const card = event.target.closest ? event.target.closest('.kcard[data-item-id]') : null;
+  if (card && card.dataset.itemId === draggingIdeaId) { clearDragState(); return; }
+  const beforeId = card ? beforeCardId(card, event.clientY) : null;
+  pageById('media').handle('move-idea', { dataset: { id: draggingIdeaId } }, ctx, JSON.stringify({ stage, beforeId }));
+  clearDragState();
+  suppressClickUntil = Date.now() + 160;
+});
+
+document.addEventListener('dragend', () => {
+  suppressClickUntil = Date.now() + 160;
+  clearDragState();
+});
+
 function commitField(el) {
   const path = el.dataset.bind;
   if (!path) return;
@@ -185,6 +250,7 @@ function commitField(el) {
 }
 
 document.addEventListener('click', async (event) => {
+  if (Date.now() < suppressClickUntil) return;
   const navItem = event.target.closest('[data-page]');
   if (navItem) {
     const focusId = navItem.dataset.focusId;

@@ -37,40 +37,41 @@ function makeCtx(state) {
 }
 
 // ---------- 自媒体 ----------
-test('自媒体渲染出五列看板与 KPI', () => {
+test('自媒体渲染出四列看板与 KPI', () => {
   const state = makeState();
   state.media.ideas = [
     { id: 'i1', title: 'Raft 第 3 期', stage: 'edit', platform: 'douyin' },
     { id: 'i2', title: '船屋开场', stage: 'idea', platform: 'bilibili' },
   ];
   const html = mediaPage.render(makeCtx(state));
-  ['选题', '脚本', '拍摄', '剪辑', '发布'].forEach((label) => assert.match(html, new RegExp(label)));
+  ['灵感', '待策划', '制作中', '待发布'].forEach((label) => assert.match(html, new RegExp(label)));
   assert.match(html, /本月发布/);
   assert.match(html, /Raft 第 3 期/);
+  assert.match(html, /data-stage="producing"/, '旧「剪辑」阶段应落到制作中');
 });
 
-test('新建选题落在选题列', () => {
+test('新建选题落在灵感列', () => {
   const state = makeState();
   mediaPage.handle('add-idea', { dataset: {} }, makeCtx(state), '新选题 A');
   assert.equal(state.media.ideas.length, 1);
   assert.equal(state.media.ideas[0].stage, 'idea');
 });
 
-test('阶段推进：选题 → 脚本 → 拍摄 → 剪辑 → 发布', () => {
+test('阶段推进：灵感 → 待策划 → 制作中 → 待发布', () => {
   const state = makeState();
   state.media.ideas = [{ id: 'i1', title: 'A', stage: 'idea', platform: 'douyin' }];
   const ctx = makeCtx(state);
-  ['script', 'shoot', 'edit'].forEach((expected) => {
+  ['plan', 'producing', 'ready'].forEach((expected) => {
     mediaPage.handle('advance-idea', { dataset: { id: 'i1' } }, ctx);
     assert.equal(state.media.ideas[0].stage, expected);
   });
   mediaPage.handle('advance-idea', { dataset: { id: 'i1' } }, ctx);
-  assert.equal(state.media.ideas[0].stage, 'publish');
+  assert.equal(state.media.ideas[0].stage, 'ready', '待发布是最后一列');
 });
 
-test('发布阶段生成发布记录且不重复', () => {
+test('待发布阶段生成发布记录且不重复', () => {
   const state = makeState();
-  state.media.ideas = [{ id: 'i1', title: 'A', stage: 'publish', platform: 'douyin' }];
+  state.media.ideas = [{ id: 'i1', title: 'A', stage: 'ready', platform: 'douyin' }];
   const ctx = makeCtx(state);
   mediaPage.handle('make-post', { dataset: { id: 'i1' } }, ctx);
   assert.equal(state.media.posts.length, 1);

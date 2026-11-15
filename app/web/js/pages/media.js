@@ -3,7 +3,7 @@
 import { isoNow, todayStr, uid } from '../schema.js';
 import {
   IDEA_STAGES, PLATFORMS, followerSnapshot, ideasByStage, isUpdateDue,
-  monthPosts, nextStage, totalViews,
+  monthPosts, moveIdea, nextStage, normalizeIdeaStage, totalViews,
 } from '../logic.js';
 import { card, dom, empty, esc, openDrawer, tag } from '../ui.js';
 
@@ -16,12 +16,15 @@ function platformLabel(key) {
 }
 
 function stageLabel(key) {
-  return IDEA_STAGES.find((item) => item.key === key)?.label || key;
+  const normalized = normalizeIdeaStage(key);
+  return IDEA_STAGES.find((item) => item.key === normalized)?.label || normalized;
 }
 
 function ideaCard(idea) {
+  const stage = normalizeIdeaStage(idea.stage);
   return `
-    <div class="kcard" data-item-id="${esc(idea.id)}" data-action="open-idea" data-id="${esc(idea.id)}">
+    <div class="kcard" draggable="true" data-item-id="${esc(idea.id)}" data-stage="${esc(stage)}"
+      data-order="${Number(idea.order) || 0}" data-action="open-idea" data-id="${esc(idea.id)}">
       <div class="kcard-title">${esc(idea.title)}</div>
       <div class="kcard-meta">
         <span>${esc(platformLabel(idea.platform))}</span>
@@ -33,11 +36,11 @@ function ideaCard(idea) {
 function kanban(state) {
   const byStage = ideasByStage(state.media.ideas);
   return `
-    <div class="kanban">
+    <div class="kanban four">
       ${IDEA_STAGES.map((stage) => `
-        <div class="kcol">
+        <div class="kcol" data-stage="${esc(stage.key)}">
           <div class="kcol-head"><b>${esc(stage.label)}</b><span class="kcol-count">${byStage[stage.key].length}</span></div>
-          ${byStage[stage.key].length ? byStage[stage.key].map(ideaCard).join('') : '<div class="kcol-empty">空的，往这里推一个</div>'}
+          ${byStage[stage.key].length ? byStage[stage.key].map(ideaCard).join('') : '<div class="kcol-empty">空的，拖一张卡进来</div>'}
         </div>`).join('')}
     </div>`;
 }
@@ -169,7 +172,7 @@ function ideaDrawer(idea, ctx) {
     <div class="sep"></div>
     <div class="hstack">
       ${next ? `<button class="btn primary" data-action="advance-idea" data-id="${esc(idea.id)}">推进到 ${esc(stageLabel(next))} →</button>` : ''}
-      ${idea.stage === 'publish' ? `<button class="btn primary" data-action="make-post" data-id="${esc(idea.id)}">生成发布记录</button>` : ''}
+      ${normalizeIdeaStage(idea.stage) === 'ready' ? `<button class="btn primary" data-action="make-post" data-id="${esc(idea.id)}">生成发布记录</button>` : ''}
       <button class="btn danger" data-action="del-idea" data-id="${esc(idea.id)}">删除选题</button>
     </div>
     <p class="faint">推进阶段会写进历史；发布后生成的记录在「平台数据」里填数字。</p>
@@ -188,9 +191,11 @@ export function handle(action, el, ctx, value) {
     const title = String(value || titleInput?.value || '').trim();
     if (!title) { ctx.toast('先写选题标题'); return true; }
     ctx.mutate((doc) => {
+      const column = doc.media.ideas.filter((item) => normalizeIdeaStage(item.stage) === 'idea');
       doc.media.ideas.push({
         id: uid('i'), title, stage: 'idea', platform: dom('idea-platform')?.value || 'douyin',
         platforms: [], scriptOutline: '', refLink: '', planDate: null, publishedAt: null, note: '', createdAt: isoNow(),
+        order: column.length,
       });
     });
     if (titleInput) titleInput.value = '';
@@ -220,7 +225,7 @@ export function handle(action, el, ctx, value) {
     ctx.mutate((doc) => {
       const target = doc.media.ideas.find((item) => item.id === id);
       target.stage = next;
-      if (next === 'publish' && !target.publishedAt) target.publishedAt = todayStr();
+      if (next === 'ready' && !target.publishedAt) target.order = doc.media.ideas.filter((item) => item.id !== id && normalizeIdeaStage(item.stage) === 'ready').length;
     });
     openDrawer('');
     ctx.toast(`已推进到「${stageLabel(next)}」`);
@@ -265,6 +270,18 @@ export function handle(action, el, ctx, value) {
   }
 
   if (action === 'filter-posts') { postFilter = value || 'all'; ctx.refresh(); return true; }
+
+  if (action === 'move-idea') {
+    let payload = {};
+    try { payload = JSON.parse(value || '{}'); } catch (error) { payload = {}; }
+    const target = normalizeIdeaStage(payload.stage || el?.dataset?.stage);
+    const beforeId = payload.beforeId || null;
+    if (!id) return true;
+    ctx.mutate((doc) => {
+      doc.media.ideas = moveIdea(doc.media.ideas, id, target, beforeId);
+    });
+    return true;
+  }
 
   if (action === 'add-follower') {
     const count = Number(dom('follower-count')?.value || 0);

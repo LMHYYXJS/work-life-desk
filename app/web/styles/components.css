@@ -220,6 +220,8 @@ select.input option { background: #141922; color: var(--text); }
 }
 .kcard:hover { border-color: var(--line-strong); transform: translateY(-1px); }
 .kcard[draggable="true"] { cursor: grab; }
+.kcard.dragging { opacity: 0.45; cursor: grabbing; }
+.kcard.dragging:hover { transform: none; }
 .kcard-title { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kcard-meta { font-size: 11px; color: var(--text-dim); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .kcol-empty { color: var(--text-faint); font-size: 11px; text-align: center; padding: 10px 0; }
