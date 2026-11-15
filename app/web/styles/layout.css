@@ -41,8 +41,19 @@
 .app.sidebar-collapsed .brand-name,
 .app.sidebar-collapsed .nav-label,
 .app.sidebar-collapsed .side-foot { display: none; }
+.app.sidebar-collapsed .nav-group-title { display: none; }
 
 .nav { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow-y: auto; padding-bottom: 8px; }
+.nav-group { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
+.nav-group-title {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+  padding: 2px 10px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.nav-spacer { flex: 1; min-height: 12px; }
 .nav-item {
   display: flex;
   align-items: center;
@@ -128,6 +139,6 @@
 
 @media (max-width: 1000px) {
   .app { grid-template-columns: 64px 1fr; }
-  .brand-name, .nav-label, .side-foot { display: none; }
+  .brand-name, .nav-label, .side-foot, .nav-group-title { display: none; }
   .topbar, .banner-wrap, .view { padding-left: 16px; padding-right: 16px; }
 }
