@@ -17,6 +17,28 @@ let chartRange = '30';
 let chartPlatform = 'all';
 let chartPostId = null;
 let compareIds = [];
+let snapshotDraft = null;
+let snapshotDirty = false;
+
+export function isChartDraftDirty() { return snapshotDirty; }
+export function resetChartDraft() { snapshotDraft = null; snapshotDirty = false; }
+
+function snapshotHasContent(draft = {}) {
+  return ['views', 'likes', 'comments', 'saves'].some((key) => String(draft[key] ?? '').trim() !== '');
+}
+
+function ensureSnapshotDraft(platformPosts, today) {
+  if (!snapshotDraft) {
+    snapshotDraft = {
+      postId: chartPostId || platformPosts[0]?.id || '',
+      date: today, views: '', likes: '', comments: '', saves: '',
+    };
+  }
+  if (!platformPosts.some((post) => post.id === snapshotDraft.postId) && !snapshotDirty) {
+    snapshotDraft.postId = platformPosts[0]?.id || '';
+  }
+  return snapshotDraft;
+}
 
 function platformLabel(key) {
   return PLATFORMS.find((item) => item.key === key)?.label || '未选平台';
@@ -151,8 +173,9 @@ function chartSection(state) {
   const postOptions = rangePosts
     .map((post) => `<option value="${esc(post.id)}" ${post.id === chartPostId ? 'selected' : ''}>${esc(post.title)}</option>`)
     .join('');
+  const draft = ensureSnapshotDraft(platformPosts, today);
   const snapPostOptions = platformPosts
-    .map((post) => `<option value="${esc(post.id)}" ${post.id === chartPostId ? 'selected' : ''}>${esc(post.title)} · ${esc(platformLabel(post.platform))}</option>`)
+    .map((post) => `<option value="${esc(post.id)}" ${post.id === draft.postId ? 'selected' : ''}>${esc(post.title)} · ${esc(platformLabel(post.platform))}</option>`)
     .join('');
 
   return `
@@ -207,15 +230,15 @@ function chartSection(state) {
           sub: '数字从平台后台抄过来',
           body: `
             <div class="inline-form">
-              <select class="input mini" id="snap-post">${snapPostOptions || '<option value="">先有发布记录</option>'}</select>
-              <input class="input mini" type="date" id="snap-date" value="${esc(today)}">
-              <input class="input mini" type="number" min="0" id="snap-views" placeholder="播放" style="width:82px">
-              <input class="input mini" type="number" min="0" id="snap-likes" placeholder="赞" style="width:70px">
-              <input class="input mini" type="number" min="0" id="snap-comments" placeholder="评" style="width:70px">
-              <input class="input mini" type="number" min="0" id="snap-saves" placeholder="藏" style="width:70px">
+              <select class="input mini" id="snap-post" data-change-action="snap-draft" data-field="postId">${snapPostOptions || '<option value="">先有发布记录</option>'}</select>
+              <input class="input mini" type="date" id="snap-date" data-change-action="snap-draft" data-field="date" value="${esc(draft.date)}">
+              <input class="input mini" type="number" min="0" id="snap-views" data-snap-field="views" value="${esc(draft.views)}" placeholder="播放" style="width:82px">
+              <input class="input mini" type="number" min="0" id="snap-likes" data-snap-field="likes" value="${esc(draft.likes)}" placeholder="赞" style="width:70px">
+              <input class="input mini" type="number" min="0" id="snap-comments" data-snap-field="comments" value="${esc(draft.comments)}" placeholder="评" style="width:70px">
+              <input class="input mini" type="number" min="0" id="snap-saves" data-snap-field="saves" value="${esc(draft.saves)}" placeholder="藏" style="width:70px">
               <button class="btn small primary" data-action="add-snapshot">保存数据点</button>
             </div>
-            <p class="faint">同一天再记一次会覆盖当天数字，不会重复累加。</p>`,
+            <p class="faint">同一天再记一次会覆盖当天数字，不会重复累加。${snapshotDirty ? ' <span class="tag warn">有未保存的数据</span>' : ' 填完点「保存数据点」才落盘。'}</p>`,
         })}
         ${card({
           title: '数据点明细',
@@ -433,17 +456,41 @@ export function handle(action, el, ctx, value) {
     return true;
   }
 
+  if (action === 'snap-draft') {
+    if (!snapshotDraft) {
+      snapshotDraft = {
+        postId: dom('snap-post')?.value || chartPostId || '',
+        date: dom('snap-date')?.value || todayStr(),
+        views: '', likes: '', comments: '', saves: '',
+      };
+    }
+    const field = el?.dataset?.field || el?.dataset?.snapField;
+    if (!field) return true;
+    snapshotDraft[field] = value ?? el.value ?? '';
+    snapshotDirty = snapshotHasContent(snapshotDraft);
+    return true;
+  }
+
   if (action === 'add-snapshot') {
-    const postId = dom('snap-post')?.value;
-    const date = dom('snap-date')?.value || todayStr();
+    const draft = snapshotDraft || {};
+    const postId = draft.postId || dom('snap-post')?.value;
+    const date = draft.date || dom('snap-date')?.value || todayStr();
     const post = state.media.posts.find((item) => item.id === postId);
     if (!post) { ctx.toast('先选一条发布记录'); return true; }
-    const metrics = {
-      views: Number(dom('snap-views')?.value || 0),
-      likes: Number(dom('snap-likes')?.value || 0),
-      comments: Number(dom('snap-comments')?.value || 0),
-      saves: Number(dom('snap-saves')?.value || 0),
+    const raw = {
+      views: dom('snap-views')?.value ?? draft.views ?? '',
+      likes: dom('snap-likes')?.value ?? draft.likes ?? '',
+      comments: dom('snap-comments')?.value ?? draft.comments ?? '',
+      saves: dom('snap-saves')?.value ?? draft.saves ?? '',
     };
+    if (!snapshotHasContent(raw)) { ctx.toast('先填至少一个数字'); return true; }
+    const metrics = {
+      views: Number(raw.views || 0),
+      likes: Number(raw.likes || 0),
+      comments: Number(raw.comments || 0),
+      saves: Number(raw.saves || 0),
+    };
+    resetChartDraft();
     ctx.mutate((doc) => {
       const target = doc.media.posts.find((item) => item.id === postId);
       if (!target) return;

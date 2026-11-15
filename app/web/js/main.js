@@ -8,6 +8,7 @@ import { navHtml, syncNav } from './nav.js';
 import { router } from './router.js';
 import { Store } from './store.js';
 import { closeDrawer, confirmDialog, confirmTyped, esc, toast } from './ui.js';
+import { guardNavigation, shouldBlockUnload } from './drafts.js';
 
 const store = new Store();
 const view = document.getElementById('view');
@@ -21,7 +22,7 @@ const ctx = {
   saveNow: () => store.saveNow(),
   undo: () => store.undo(),
   today: () => todayStr(),
-  navigate: (id, opts) => router.go(id, opts),
+  navigate: (id, opts) => guardedGo(id, opts),
   toast,
   confirm: confirmDialog,
   confirmTyped,
@@ -29,6 +30,25 @@ const ctx = {
   highlight: (id) => highlight(id),
   api,
 };
+
+let navigationPending = false;
+
+async function guardedGo(id, opts = {}) {
+  if (navigationPending) return false;
+  navigationPending = true;
+  try {
+    return await guardNavigation({
+      target: id,
+      current: router.current,
+      go: (target) => router.go(target, opts),
+      mediaPage: pageById('media'),
+      devPage: pageById('dev'),
+      confirm: confirmDialog,
+    });
+  } finally {
+    navigationPending = false;
+  }
+}
 
 // ---------- 侧栏 ----------
 function buildNav() {
@@ -254,7 +274,7 @@ document.addEventListener('click', async (event) => {
   const navItem = event.target.closest('[data-page]');
   if (navItem) {
     const focusId = navItem.dataset.focusId;
-    router.go(navItem.dataset.page);
+    await guardedGo(navItem.dataset.page);
     if (focusId) setTimeout(() => highlight(focusId), 80);
     return;
   }
@@ -311,6 +331,18 @@ document.addEventListener('change', (event) => {
   }
 });
 
+document.addEventListener('input', (event) => {
+  const target = event.target;
+  if (!target) return;
+  if (router.current === 'media' && target.dataset?.snapField) {
+    pageById('media').handle('snap-draft', target, ctx, target.value);
+    return;
+  }
+  if (router.current === 'dev' && target.dataset?.changeAction === 'ms-field') {
+    pageById('dev').handle('ms-field', target, ctx, target.value);
+  }
+});
+
 document.addEventListener('keydown', (event) => {
   const tag = (event.target.tagName || '').toLowerCase();
   const typing = tag === 'input' || tag === 'textarea' || event.target.isContentEditable;
@@ -344,7 +376,7 @@ document.addEventListener('keydown', (event) => {
   }
   if (event.key >= '1' && event.key <= '9') {
     const page = pages[Number(event.key) - 1];
-    if (page) router.go(page.meta.id);
+    if (page) guardedGo(page.meta.id);
     return;
   }
   if (event.key.toLowerCase() === 'n') {
@@ -383,8 +415,12 @@ async function boot() {
   render();
 }
 
-window.addEventListener('beforeunload', () => {
+window.addEventListener('beforeunload', (event) => {
   if (store.dirty) store.saveNow();
+  if (shouldBlockUnload(pageById('media'), pageById('dev'))) {
+    event.preventDefault();
+    event.returnValue = '';
+  }
 });
 
 window.WLD = { store, router, ctx };
