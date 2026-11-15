@@ -21,22 +21,15 @@
 
 ## 2. 上线前必须替换的链接
 
-网站代码里请使用下面两个占位符，等 GitHub 仓库建立后再替换成真实地址：
+GitHub 仓库已经建立并公开。网站代码里请直接使用下面两个真实地址：
 
 ```text
-{{GITHUB_REPO_URL}}
-{{GITHUB_RELEASES_URL}}
+https://github.com/LMHYYXJS/work-life-desk
+https://github.com/LMHYYXJS/work-life-desk/releases/latest
 ```
 
-替换示例：
-
-```text
-https://github.com/<你的用户名>/work-life-desk
-https://github.com/<你的用户名>/work-life-desk/releases/latest
-```
-
-**在链接替换前，不要公开上线这个入口，避免出现 404 或空链接。**
-如果必须提前预览，可以显示“即将开源”，但不要做成可点击的假按钮。
+**注意用户名是 `LMHYYXJS`（带 J），不要写成 `LMHYYXS`。**
+Release 尚未发布前，`releases/latest` 会暂时跳转到 Releases 列表页；发布 `v1.0.0` 后即可直接下载 Windows 包。
 
 ---
 
