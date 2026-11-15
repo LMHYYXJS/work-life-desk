@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN" class="theme-dark fs-normal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>工作生活台</title>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/layout.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/pages.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <span class="brand-name">工作生活台</span>
+      </div>
+      <nav class="nav" id="nav" aria-label="主导航"></nav>
+      <div class="side-foot">
+        <span class="save-dot" id="save-dot"></span>
+        <span id="save-status">正在加载…</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn" data-action="toggle-sidebar" title="收起侧栏（Ctrl+B）" aria-label="收起侧栏">☰</button>
+        <h1 class="page-title" id="page-title">首页总览</h1>
+        <div class="topbar-right">
+          <span class="today-label" id="today-label"></span>
+          <button class="btn ghost" id="undo-btn" data-action="undo" hidden>↩ 撤销</button>
+          <button class="btn primary" id="new-btn" data-action="new">＋ 新建</button>
+        </div>
+      </header>
+
+      <div class="banner-wrap" id="banner"></div>
+      <section class="view" id="view" aria-live="polite"></section>
+
+      <div class="toast" id="toast" hidden></div>
+      <div class="modal-root" id="modal-root"></div>
+    </main>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

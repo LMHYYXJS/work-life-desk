@@ -1,0 +1,6 @@
+{
+  "name": "work-life-desk-web",
+  "private": true,
+  "type": "module",
+  "description": "工作生活台前端（原生 ES Modules，无构建）"
+}

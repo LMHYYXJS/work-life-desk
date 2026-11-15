@@ -1,0 +1,52 @@
+:root {
+  --bg: #0b0e13;
+  --bg-soft: #0f141b;
+  --card: rgba(255, 255, 255, 0.04);
+  --card-strong: rgba(255, 255, 255, 0.07);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --text: #e6eaf0;
+  --text-dim: #8b95a6;
+  --text-faint: #5b6577;
+  --accent: #4dd8ff;
+  --accent-soft: rgba(77, 216, 255, 0.14);
+  --warn: #ffb648;
+  --warn-soft: rgba(255, 182, 72, 0.14);
+  --danger: #ff6b6b;
+  --danger-soft: rgba(255, 107, 107, 0.14);
+  --ok: #4ade80;
+  --ok-soft: rgba(74, 222, 128, 0.14);
+  --radius-card: 16px;
+  --radius-ctl: 10px;
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  --fs-title: 26px;
+  --fs-block: 15px;
+  --fs-body: 14px;
+  --fs-sub: 12px;
+  --sidebar-w: 220px;
+}
+
+.theme-light {
+  --bg: #f2f3f8;
+  --bg-soft: #ffffff;
+  --card: rgba(255, 255, 255, 0.86);
+  --card-strong: #ffffff;
+  --line: rgba(15, 20, 30, 0.10);
+  --line-strong: rgba(15, 20, 30, 0.20);
+  --text: #12161d;
+  --text-dim: #5b6577;
+  --text-faint: #8b95a6;
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.12);
+  --warn: #b26a00;
+  --warn-soft: rgba(178, 106, 0, 0.12);
+  --danger: #d9444b;
+  --danger-soft: rgba(217, 68, 75, 0.12);
+  --ok: #1f9d55;
+  --ok-soft: rgba(31, 157, 85, 0.12);
+  --shadow: 0 12px 28px rgba(20, 30, 50, 0.10);
+}
+
+.fs-small { --fs-title: 23px; --fs-block: 14px; --fs-body: 13px; --fs-sub: 11px; }
+.fs-normal { --fs-title: 26px; --fs-block: 15px; --fs-body: 14px; --fs-sub: 12px; }
+.fs-large { --fs-title: 30px; --fs-block: 17px; --fs-body: 16px; --fs-sub: 13px; }
