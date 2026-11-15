@@ -243,6 +243,52 @@ export function openBugCount(bugs) {
   return (bugs || []).filter((bug) => bug.status !== 'verified').length;
 }
 
+// ---------- 开发里程碑 ----------
+export const MILESTONE_STATUS = [
+  { key: 'todo', label: '未开始', cls: '' },
+  { key: 'doing', label: '进行中', cls: 'warn' },
+  { key: 'done', label: '已完成', cls: 'ok' },
+  { key: 'blocked', label: '卡住', cls: 'danger' },
+];
+
+export function normalizeMilestoneStatus(status) {
+  return MILESTONE_STATUS.some((item) => item.key === status) ? status : 'todo';
+}
+
+export function projectMilestones(project = {}) {
+  return [...(project.milestones || [])].sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')));
+}
+
+export function isMilestoneOverdue(milestone = {}, today = todayStr()) {
+  if (normalizeMilestoneStatus(milestone.status) === 'done') return false;
+  return Boolean(milestone.dueDate) && String(milestone.dueDate) < String(today);
+}
+
+export function milestoneStats(milestones = [], today = todayStr()) {
+  const total = milestones.length;
+  const done = milestones.filter((item) => normalizeMilestoneStatus(item.status) === 'done').length;
+  const overdue = milestones.filter((item) => isMilestoneOverdue(item, today)).length;
+  return { total, done, overdue, pct: total ? Math.round((done / total) * 100) : 0 };
+}
+
+/** 所有项目的节点摊平，附带项目名，供顶部逾期提醒使用。 */
+export function allMilestones(projects = []) {
+  return (projects || []).flatMap((project) => (project.milestones || []).map((milestone) => ({
+    ...milestone,
+    projectId: project.id,
+    projectName: project.name,
+  })));
+}
+
+export function milestoneOverview(projects = [], today = todayStr()) {
+  const items = allMilestones(projects);
+  const stats = milestoneStats(items, today);
+  const overdue = items
+    .filter((item) => isMilestoneOverdue(item, today))
+    .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
+  return { ...stats, overdueItems: overdue };
+}
+
 export function hasLogToday(logs, today) {
   return (logs || []).some((log) => log.date === today);
 }

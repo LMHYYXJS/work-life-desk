@@ -93,3 +93,28 @@
 .chart-compare-item { display: inline-flex; align-items: center; gap: 6px; max-width: 48%; min-width: 0; }
 .chart-compare-item input { flex: none; }
 .chart-empty { margin: 6px 0; }
+
+/* ---------- 开发里程碑 ---------- */
+.section-gap-sm { margin-top: 10px; }
+.milestone-summary .card-body { gap: 8px; }
+.milestone-summary progress { width: 100%; }
+.overdue-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.overdue-item {
+  font-size: var(--fs-sub); color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
+  border-radius: 6px; padding: 2px 8px;
+}
+.milestone-editor { display: flex; flex-direction: column; gap: 2px; }
+.milestone-editor-meta { flex-wrap: wrap; gap: 12px; margin-bottom: 6px; }
+.milestone-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 7px 8px; border-radius: 8px;
+  border: 1px solid transparent; border-bottom-color: var(--line);
+}
+.milestone-row.overdue {
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  background: color-mix(in srgb, var(--danger) 5%, transparent);
+}
+.milestone-row .grow { flex: 1; min-width: 170px; }
+.milestone-row .input.mini { flex: none; }

@@ -2,14 +2,18 @@
 
 import { isoNow, todayStr, uid } from '../schema.js';
 import {
-  BUG_SEVERITY, BUG_STATUS, PROJECT_STAGES, hasLogToday,
-  isItemDone, openBugCount, projectProgress,
+  BUG_SEVERITY, BUG_STATUS, MILESTONE_STATUS, PROJECT_STAGES, hasLogToday,
+  isItemDone, isMilestoneOverdue, milestoneOverview, milestoneStats,
+  normalizeMilestoneStatus, openBugCount, projectMilestones, projectProgress,
 } from '../logic.js';
 import { card, dom, empty, esc, openDrawer, openFormModal, progress, tag } from '../ui.js';
 
 export const meta = { id: 'dev', title: '开发工作', icon: '💻' };
 
 let activeTab = 'needs';
+let msProjectId = null;
+let msDraft = null;
+let msDirty = false;
 
 const TABS = [
   { key: 'needs', label: '需求' },
@@ -96,6 +100,139 @@ function openProjectModal(ctx) {
   });
 }
 
+/** 校验里程碑草稿：节点名、截止日、达到程度、状态四个字段都要有。 */
+export function normalizeMilestoneDraft(items = []) {
+  const milestones = [];
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index] || {};
+    const title = String(item.title || '').trim();
+    const target = String(item.target || '').trim();
+    const dueDate = String(item.dueDate || '').trim();
+    if (!title) return { ok: false, error: `第 ${index + 1} 个节点还没写名称` };
+    if (!dueDate) return { ok: false, error: `「${title}」还没写截止日` };
+    if (!target) return { ok: false, error: `「${title}」还没写达到什么程度` };
+    milestones.push({
+      id: item.id || uid('ms'),
+      title,
+      dueDate,
+      target,
+      status: normalizeMilestoneStatus(item.status),
+    });
+  }
+  return { ok: true, milestones };
+}
+
+export function resetMilestoneDraft() {
+  msDraft = null;
+  msDirty = false;
+}
+
+export function isMilestoneDraftDirty() {
+  return msDirty;
+}
+
+function blankMilestone() {
+  return { id: uid('ms'), title: '', dueDate: '', target: '', status: 'todo' };
+}
+
+function ensureMilestoneDraft(state) {
+  const projects = state.dev.projects;
+  if (!projects.length) {
+    msProjectId = null;
+    msDraft = null;
+    msDirty = false;
+    return null;
+  }
+  if (!projects.some((project) => project.id === msProjectId)) {
+    msProjectId = projects[0].id;
+    msDraft = null;
+    msDirty = false;
+  }
+  const project = projects.find((item) => item.id === msProjectId);
+  if (!msDraft) {
+    msDraft = projectMilestones(project).map((item) => ({
+      id: item.id || uid('ms'),
+      title: item.title || '',
+      dueDate: item.dueDate || '',
+      target: item.target || '',
+      status: normalizeMilestoneStatus(item.status),
+    }));
+  }
+  return project;
+}
+
+function milestoneSummary(state, today) {
+  const overview = milestoneOverview(state.dev.projects, today);
+  const overdue = overview.overdueItems.slice(0, 4);
+  return `
+    <section class="card milestone-summary section-gap">
+      <div class="card-head">
+        <div class="card-title">里程碑进度</div>
+        <span class="card-sub">按项目节点统计，已完成才算进度</span>
+        <div class="card-actions">
+          ${overview.overdue ? tag(`逾期 ${overview.overdue} 个`, 'danger') : tag('全部在期内', 'ok')}
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="hstack">
+          ${progress(overview.pct)}
+          <b class="num">${overview.done}/${overview.total}</b>
+          <span class="faint">${overview.pct}% 完成</span>
+        </div>
+        ${overdue.length ? `<div class="overdue-list">${overdue.map((item) => `<span class="overdue-item">${esc(item.projectName)} · ${esc(item.title)} · ${esc(item.dueDate)}</span>`).join('')}${overview.overdue > overdue.length ? `<span class="faint">还有 ${overview.overdue - overdue.length} 个…</span>` : ''}</div>` : '<div class="faint">没有逾期节点，节奏不错。</div>'}
+      </div>
+    </section>`;
+}
+
+function milestoneEditor(state, today) {
+  const project = ensureMilestoneDraft(state);
+  if (!project) return '';
+  const savedStats = milestoneStats(project.milestones || [], today);
+  const draftStats = milestoneStats(msDraft, today);
+  const projectOptions = state.dev.projects.map((item) => `<option value="${esc(item.id)}" ${item.id === project.id ? 'selected' : ''}>${esc(item.name)}</option>`).join('');
+
+  return `
+    <section class="card section-gap" id="milestone-editor">
+      <div class="card-head">
+        <div class="card-title">项目里程碑</div>
+        <span class="card-sub">截止日 + 达到什么程度 + 状态</span>
+        <div class="card-actions">
+          <select class="input mini" data-change-action="ms-project">${projectOptions}</select>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="hstack milestone-editor-meta">
+          <span class="stat-inline">已保存 <b class="num">${savedStats.done}/${savedStats.total}</b></span>
+          <span class="stat-inline">草稿 <b class="num">${draftStats.done}/${draftStats.total}</b></span>
+          ${draftStats.overdue ? tag(`草稿里逾期 ${draftStats.overdue}`, 'warn') : ''}
+          ${msDirty ? '<span class="tag warn">有未保存改动</span>' : '<span class="tag ok">已同步</span>'}
+        </div>
+        <div class="milestone-editor">
+          ${msDraft.length ? msDraft.map((item, index) => {
+            const overdue = isMilestoneOverdue(item, today);
+            return `
+              <div class="milestone-row ${overdue ? 'overdue' : ''}" data-index="${index}">
+                <input class="input grow" data-change-action="ms-field" data-index="${index}" data-field="title" value="${esc(item.title)}" placeholder="节点名，比如「首页可打开」">
+                <input class="input mini" type="date" data-change-action="ms-field" data-index="${index}" data-field="dueDate" value="${esc(item.dueDate)}">
+                <input class="input grow" data-change-action="ms-field" data-index="${index}" data-field="target" value="${esc(item.target)}" placeholder="达到什么程度，能验收的一句话">
+                <select class="input mini" data-change-action="ms-field" data-index="${index}" data-field="status">
+                  ${MILESTONE_STATUS.map((status) => `<option value="${status.key}" ${normalizeMilestoneStatus(item.status) === status.key ? 'selected' : ''}>${status.label}</option>`).join('')}
+                </select>
+                <button class="btn small danger" data-action="del-milestone-row" data-index="${index}" title="删掉这一行">✕</button>
+              </div>`;
+          }).join('') : '<div class="faint">这个项目还没有节点。加一个，写清楚什么时候做到什么。</div>'}
+        </div>
+        <div class="hstack section-gap-sm">
+          <button class="btn small" data-action="add-milestone-row">＋ 加节点</button>
+          <button class="btn small primary" data-action="save-milestones">保存里程碑</button>
+          <button class="btn small ghost" data-action="reset-milestones">放弃改动</button>
+          <span class="faint">改完点保存才写进数据文件。</span>
+        </div>
+      </div>
+    </section>`;
+}
+
+
 function projectName(state, projectId) {
   return state.dev.projects.find((item) => item.id === projectId)?.name || '未归属项目';
 }
@@ -123,6 +260,7 @@ function projectCards(state) {
     <div class="grid cols-2">
       ${state.dev.projects.map((project) => {
         const pct = projectProgress(mode, project, lists);
+        const ms = milestoneStats(project.milestones || [], todayStr());
         return `
           <div class="card project-card" data-item-id="${esc(project.id)}">
             <div class="card-head">
@@ -134,6 +272,8 @@ function projectCards(state) {
               ${progress(pct)}
               <div class="faint cut">下一步：${esc(project.nextStep || '还没写')}</div>
               <div class="hstack">
+                <span class="faint">里程碑 ${ms.done}/${ms.total}${ms.overdue ? ` · <span class="danger">逾期 ${ms.overdue}</span>` : ''}</span>
+                <div class="spacer"></div>
                 <button class="btn small" data-action="open-project" data-id="${esc(project.id)}">打开</button>
               </div>
             </div>
@@ -271,6 +411,9 @@ export function render(ctx) {
       ${projectCards(state)}
     </section>
 
+    ${milestoneSummary(state, today)}
+    ${milestoneEditor(state, today)}
+
     <section class="card section-gap">
       <div class="card-head">
         <div class="card-title">
@@ -359,6 +502,69 @@ export function handle(action, el, ctx, value) {
   }
 
   if (action === 'tab') { activeTab = el.dataset.tab; ctx.refresh(); return true; }
+
+  if (action === 'ms-project') {
+    const next = value || state.dev.projects[0]?.id;
+    const apply = () => { msProjectId = next; msDraft = null; msDirty = false; ctx.refresh(); };
+    if (msDirty && typeof ctx.confirm === 'function') {
+      ctx.confirm({ title: '还有没保存的里程碑', message: '切换项目会丢掉刚才的改动，确定切换吗？', okLabel: '丢掉并切换' })
+        .then((ok) => { if (ok) apply(); else ctx.refresh(); });
+      return true;
+    }
+    apply();
+    return true;
+  }
+
+  if (action === 'ms-field') {
+    const index = Number(el?.dataset?.index);
+    const field = el?.dataset?.field;
+    const item = msDraft?.[index];
+    if (!item || !field) return true;
+    item[field] = field === 'status' ? normalizeMilestoneStatus(el.value) : el.value;
+    msDirty = true;
+    return true;
+  }
+
+  if (action === 'add-milestone-row') {
+    if (!state.dev.projects.length) { ctx.toast('先建一个项目'); return true; }
+    if (!msDraft) ensureMilestoneDraft(state);
+    msDraft.push(blankMilestone());
+    msDirty = true;
+    ctx.refresh();
+    return true;
+  }
+
+  if (action === 'del-milestone-row') {
+    const index = Number(el?.dataset?.index);
+    if (!msDraft || index < 0) return true;
+    msDraft.splice(index, 1);
+    msDirty = true;
+    ctx.refresh();
+    return true;
+  }
+
+  if (action === 'reset-milestones') {
+    resetMilestoneDraft();
+    ctx.refresh();
+    ctx.toast('已回到已保存的版本');
+    return true;
+  }
+
+  if (action === 'save-milestones') {
+    if (!msProjectId || !msDraft) { ctx.toast('没有可保存的节点'); return true; }
+    const result = normalizeMilestoneDraft(msDraft);
+    if (!result.ok) { ctx.toast(result.error); return true; }
+    ctx.mutate((doc) => {
+      const project = doc.dev.projects.find((item) => item.id === msProjectId);
+      if (!project) return;
+      project.milestones = result.milestones;
+      project.updatedAt = isoNow();
+    });
+    msDirty = false;
+    msDraft = null;
+    ctx.toast('里程碑已保存');
+    return true;
+  }
 
   if (action === 'add-item') {
     const titleInput = dom('item-title');

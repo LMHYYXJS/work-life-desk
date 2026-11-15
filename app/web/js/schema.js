@@ -146,6 +146,9 @@ export function normalizeDoc(doc) {
   out.media.posts.forEach((post) => {
     if (!Array.isArray(post.snapshots)) post.snapshots = [];
   });
+  out.dev.projects.forEach((project) => {
+    if (!Array.isArray(project.milestones)) project.milestones = [];
+  });
   return out;
 }
 
